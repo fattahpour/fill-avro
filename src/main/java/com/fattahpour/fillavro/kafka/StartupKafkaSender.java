@@ -56,56 +56,73 @@ public class StartupKafkaSender implements CommandLineRunner {
         // using the generated builder so the produced message is a true SpecificRecord.
         try {
             ExampleUser.Builder b = ExampleUser.newBuilder();
-            Object v = record.get("id");
-            if (v != null) b.setId(v.toString());
-            v = record.get("email");
-            if (v != null) b.setEmail(v.toString());
-            v = record.get("firstName");
-            if (v != null) b.setFirstName(v.toString());
-            v = record.get("lastName");
-            if (v != null) b.setLastName(v.toString());
 
+            // id: use record value or fallback to generated random key
+            Object v = record.get("id");
+            b.setId(v == null ? recordGenerator.randomKey() : v.toString());
+
+            // strings: never leave null — use empty string as sensible default
+            v = record.get("email");
+            b.setEmail(v == null ? "" : v.toString());
+            v = record.get("firstName");
+            b.setFirstName(v == null ? "" : v.toString());
+            v = record.get("lastName");
+            b.setLastName(v == null ? "" : v.toString());
+
+            // address: always set an Address builder with non-null string fields
             Object addrObj = record.get("address");
+            Address.Builder ab = Address.newBuilder();
             if (addrObj instanceof GenericRecord) {
                 GenericRecord addr = (GenericRecord) addrObj;
-                Address.Builder ab = Address.newBuilder();
-                Object av = addr.get("street"); if (av != null) ab.setStreet(av.toString());
-                av = addr.get("city"); if (av != null) ab.setCity(av.toString());
-                av = addr.get("postalCode"); if (av != null) ab.setPostalCode(av.toString());
-                b.setAddressBuilder(ab);
+                Object av = addr.get("street"); ab.setStreet(av == null ? "" : av.toString());
+                av = addr.get("city"); ab.setCity(av == null ? "" : av.toString());
+                av = addr.get("postalCode"); ab.setPostalCode(av == null ? "" : av.toString());
+            } else {
+                ab.setStreet("").setCity("").setPostalCode("");
             }
+            b.setAddressBuilder(ab);
 
+            // tags: always set a (possibly empty) list
             Object tagsObj = record.get("tags");
+            List<CharSequence> tags = new ArrayList<>();
             if (tagsObj instanceof List) {
                 List<?> raw = (List<?>) tagsObj;
-                List<CharSequence> tags = new ArrayList<>();
-                for (Object o : raw) tags.add(o == null ? null : o.toString());
-                b.setTags(tags);
+                for (Object o : raw) tags.add(o == null ? "" : o.toString());
             }
+            b.setTags(tags);
 
+            // metadata: always set a (possibly empty) map
             Object metaObj = record.get("metadata");
+            Map<CharSequence, CharSequence> map = new HashMap<>();
             if (metaObj instanceof Map) {
                 Map<?,?> raw = (Map<?,?>) metaObj;
-                Map<CharSequence, CharSequence> map = new HashMap<>();
                 for (Map.Entry<?,?> e : raw.entrySet()) {
                     Object kk = e.getKey(); Object vv = e.getValue();
-                    map.put(kk == null ? null : kk.toString(), vv == null ? null : vv.toString());
+                    map.put(kk == null ? "" : kk.toString(), vv == null ? "" : vv.toString());
                 }
-                b.setMetadata(map);
             }
+            b.setMetadata(map);
 
+            // createdAt: use value or current time
             Object created = record.get("createdAt");
-            if (created instanceof Number) b.setCreatedAt(((Number) created).longValue());
+            b.setCreatedAt(created instanceof Number ? ((Number) created).longValue() : System.currentTimeMillis());
 
+            // status: try to map, otherwise default to first enum value
             Object statusObj = record.get("status");
+            Status statusToSet = null;
             if (statusObj != null) {
                 String sym = statusObj.toString();
                 try {
-                    b.setStatus(Status.valueOf(sym));
+                    statusToSet = Status.valueOf(sym);
                 } catch (IllegalArgumentException ignore) {
-                    // leave default
+                    // will set default below
                 }
             }
+            if (statusToSet == null) {
+                Status[] vals = Status.values();
+                statusToSet = vals.length > 0 ? vals[0] : null;
+            }
+            if (statusToSet != null) b.setStatus(statusToSet);
 
             ExampleUser specific = b.build();
             ProducerRecord<Object, Object> producerRecord = new ProducerRecord<>(topic, partition, messageKey, specific);

@@ -1,0 +1,15 @@
+{
+  "id": "user-123",
+  "email": "alice@example.com",
+  "firstName": "Alice",
+  "lastName": "Doe",
+  "address": {
+    "street": "123 Main St",
+    "city": "Springfield",
+    "postalCode": "12345"
+  },
+  "tags": ["alpha", "beta"],
+  "metadata": {"source": "generated", "env": "local"},
+  "createdAt": 1700000000000,
+  "status": "ACTIVE"
+}
