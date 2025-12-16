@@ -79,7 +79,10 @@
                             <includes>
                                 <include>*.avsc</include>
                             </includes>
-                            <addSources>true</addSources>
+                               <!-- Let the plugin add generated sources during build (default behaviour).
+                                   We removed checked-in generated sources; enable addSources so the
+                                   avro-maven-plugin adds the generated directory to the project sources. -->
+                               <addSources>true</addSources>
                         </configuration>
                     </execution>
                 </executions>
