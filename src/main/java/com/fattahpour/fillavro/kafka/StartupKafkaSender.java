@@ -2,10 +2,8 @@ package com.fattahpour.fillavro.kafka;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.io.DatumWriter;
-import org.apache.avro.io.Encoder;
-import org.apache.avro.io.EncoderFactory;
-import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.specific.SpecificData;
+import org.apache.avro.specific.SpecificRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import com.fattahpour.fillavro.avro.AvroRecordGenerator;
 import com.fattahpour.fillavro.avro.AvroSchemaLoader;
@@ -46,21 +44,10 @@ public class StartupKafkaSender implements CommandLineRunner {
         Schema schema = schemaLoader.load(schemaPath);
         GenericRecord record = recordGenerator.generateRecord(schema);
         String messageKey = (key != null && !key.isBlank()) ? key : recordGenerator.randomKey();
-        // convert GenericRecord to Avro JSON string to avoid Jackson trying to serialize Avro Schema objects
-        String recordJson = avroRecordToJson(schema, record);
-        ProducerRecord<Object, Object> producerRecord = new ProducerRecord<>(topic, partition, messageKey, recordJson);
+        // attempt to convert GenericRecord to a generated SpecificRecord when available;
+        // do not assume conversion returns a SpecificRecord (tests may run without generated classes).
+        Object specific = SpecificData.get().deepCopy(schema, record);
+        ProducerRecord<Object, Object> producerRecord = new ProducerRecord<>(topic, partition, messageKey, specific);
         kafkaTemplate.send(producerRecord);
-    }
-
-    private String avroRecordToJson(Schema schema, GenericRecord record) {
-        try (java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
-            DatumWriter<GenericRecord> writer = new GenericDatumWriter<>(schema);
-            Encoder encoder = EncoderFactory.get().jsonEncoder(schema, out);
-            writer.write(record, encoder);
-            encoder.flush();
-            return out.toString(java.nio.charset.StandardCharsets.UTF_8.name());
-        } catch (java.io.IOException e) {
-            throw new RuntimeException("Failed to serialize Avro record to JSON", e);
-        }
     }
 }
